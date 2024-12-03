@@ -1,11 +1,17 @@
-# ECHBT
-![Screenshot](icons/screenshot.png)
+# Echelon To Garmin
 
-This is a Bluetooth client for the Echelon Sport stationary bike. (May work with others)
+This is a fork of https://github.com/snowzach/echbt
 
-It's written using Arduino and designed for this board: https://www.makerfocus.com/collections/esp32 (MakerFocus ESP32)
+This is a Bluetooth client for the Echelon Sport stationary bike that can create activities for garmin connect. (Auto 
+upload to garmin possibly comming soon) It does this by sending the information to a php server where its stored a 
+processed by a python script to output a .fit file which when uploaded to garmin connect will show various graphs and
+allow for tracking of workouts.
 
-Amazon: https://www.amazon.com/gp/product/B076KJZ5QM
+This project is a fork of another project and was created as the original board was not available in my country and the 
+heltec drivers wouldnt work and appeared to be buggy.
+
+It's written using Arduino and designed for this board: https://a.co/d/aAaFCNw but hypothetically any esp32 with an oled
+using I2C will work
 
 It scans and connects on startup for an Echelon Sport bike and connects automatically
 
@@ -16,14 +22,34 @@ It shows:
 
 The resistance and power is roughly adjusted to be compatible with Peleton.
 
-## Now an Android App!
-For an Android App that displays this information as an overlay over any other apps, check out [EchBT Stats](https://www.echbt.com)
+# Requirements
+## ESP Libraries
+1. "BLEDevice.h"
+1. "device.h"
+1. "power.h"
+1. <WiFi.h>
+1. <HTTPClient.h>
+1. "time.h"
+1. "esp_sntp.h"
+1. "OLEDDisplayUi.h"
+1. <Wire.h>
+1. "SSD1306Wire.h"
 
-## Display for Cadence Sensors
-If you have a normal cadence sensor for your spin bike, checkout [My Cadence for Arduino](https://github.com/jamesmontemagno/mycadence-arduino), a fork of this project that enables you to get realtime cadence for any cadence sensor.
+## Python Libraries
+1.Fit_Tools
 
-## Cases
-[Echelon EX-15 case by brian529](https://www.thingiverse.com/thing:4806275)
+## Workflow
+
+ESP 32 sends the data to a php file(https://ubuntu.com/server/docs/how-to-install-and-configure-php)
+and running the echelon_rtb.php file. The echelon_rtb.php file creates a csv file that when inputed to the python script
+the python ech2fit.py it will create a fit file that can be uploaded to garmin(Or really any service/program).
+
+### Road Map
+1. Workout time shown on screen
+1. Restrict time of workouts so workouts are limited to x amount of time
+1. Auto process activities
+1. Auto-upload activities to Garmin
+
 
 LICENSE: <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc-sa/4.0/80x15.png" /></a><br />This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc-sa/4.0/">Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License</a>.
 

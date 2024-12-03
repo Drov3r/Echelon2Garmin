@@ -1,9 +1,14 @@
-#include "Arduino.h"
-#include "heltec.h"
 #include "BLEDevice.h"
-#include "icons.h"
 #include "device.h"
 #include "power.h"
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "time.h"
+#include "esp_sntp.h"
+#include "OLEDDisplayUi.h"
+#include <Wire.h>
+#include "SSD1306Wire.h"
+
 
 static boolean connected = false;
 
@@ -21,9 +26,70 @@ static int power = 0;
 static unsigned long runtime = 0;
 static unsigned long last_millis = 0;
 static unsigned long last_cadence = 0;
+#define KEY_BUILTIN 3
+#define LED 2
 
 #define debug 0
 #define maxResistance 32
+const char *ntpServer1 = "pool.ntp.org";
+const char *ntpServer2 = "time.nist.gov";
+const long gmtOffset_sec = 3600*-5;
+const int daylightOffset_sec = 3600;
+
+const char *time_zone = "CET-1CEST,M3.5.0,M10.5.0/3";  // TimeZone rule for Europe/Rome including daylight adjustment rules (optional)
+SSD1306Wire display(0x3c, 5, 4);  // ADDRESS, SDA, SCL  -  SDA and SCL usually populate automatically based on your board's pins_arduino.h e.g. https://github.com/esp8266/Arduino/blob/master/variants/nodemcu/pins_arduino.h
+// SH1106Wire display(0x3c, SDA, SCL);
+
+OLEDDisplayUi ui     ( &display );
+
+void drawFrame5(OLEDDisplay *display, OLEDDisplayUiState* state, int16_t x, int16_t y) {
+  display->setFont(ArialMT_Plain_10);
+
+  // The coordinates define the left starting point of the text
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->drawString(0 + x, 11 + y, "CAD:");
+   // The coordinates define the right end of the text
+  display->setTextAlignment(TEXT_ALIGN_RIGHT);
+  display->drawString(128 + x, 11 + y, "RES:");
+
+  // The coordinates define the center of the text
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->drawString(64 + x, 11 + y, "PWR:");
+
+  display->setFont(ArialMT_Plain_24);
+
+  // The coordinates define the left starting point of the text
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->drawString(0 + x, 28 + y, String(cadence));
+   // The coordinates define the right end of the text
+  display->setTextAlignment(TEXT_ALIGN_RIGHT);
+
+  display->drawString(128 + x, 28 + y, String(getPeletonResistance(resistance)));
+
+  // The coordinates define the center of the text
+  display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->drawString(64 + x, 28 + y, String(power));
+
+}
+
+
+String getLocalTime() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) {
+    Serial.println("No time available (yet)");
+    return"";
+  }
+  char timeStringBuff[50]; //50 chars should be enough
+  strftime(timeStringBuff, sizeof(timeStringBuff), "%B %d %Y %H:%M:%S", &timeinfo);
+  String asString(timeStringBuff);
+  return(timeStringBuff);
+}
+
+// Callback function (gets called when time adjusts via NTP)
+void timeavailable(struct timeval *t) {
+  Serial.println("Got time adjustment from NTP!");
+  Serial.println(getLocalTime());
+}
 
 // Called when device sends update notification
 static void notifyCallback(BLERemoteCharacteristic* pBLERemoteCharacteristic, uint8_t* data, size_t length, bool isNotify) {
@@ -76,7 +142,8 @@ class AdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice advertisedDevice) {
     Serial.print("BLE Advertised Device found: ");
     Serial.println(advertisedDevice.toString().c_str());
-    if(advertisedDevice.getName().size() > 0) {
+   int stringLength = sizeof(advertisedDevice.getName()) / sizeof(advertisedDevice.getName()[0]);
+    if(stringLength > 0) {
       BLEAdvertisedDevice * d = new BLEAdvertisedDevice;
       *d = advertisedDevice;
       addDevice(d);
@@ -85,24 +152,12 @@ class AdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
 };
     
 void updateDisplay() {
-  Heltec.display->clear();
-
-  // Screen Timeout
-  if(last_millis - last_cadence > ScreenTimeoutMillis) {
-    Heltec.display->display();
-    return;
-  }
   
   // Runtime
-  Heltec.display->setFont(ArialMT_Plain_24);
   char buf[5];
   const int minutes = int(runtime / 60000);
   itoa(minutes, buf, 10);
-  Heltec.display->setTextAlignment(TEXT_ALIGN_RIGHT);
-  Heltec.display->drawString(48, 0, buf);
-  Heltec.display->setTextAlignment(TEXT_ALIGN_LEFT);
-  Heltec.display->drawXbm(0, 4, clock_icon_width, clock_icon_height, clock_icon);
-  Heltec.display->drawString(48, 0, ":");
+
   const int seconds = int(runtime % 60000)/1000;
   if(seconds < 10) {
     buf[0] = '0';
@@ -110,42 +165,55 @@ void updateDisplay() {
   } else {
     itoa(seconds, buf, 10);  
   }
-  Heltec.display->drawString(54, 0, buf);
-
+  bool peddling=false;
+  String stats="";
+if (cadence>0){
+  peddling=true;
+}
   // Cadence
-  Heltec.display->drawXbm(0, 26, cadence_icon_width, cadence_icon_height, cadence_icon);
+ 
   itoa(cadence, buf, 10);
-  Heltec.display->drawString(22, 22, buf);
+  Serial.print(buf);
+  stats=stats+buf+",";
+ 
 
   // Power
-  Heltec.display->drawXbm(66, 26, power_icon_width, power_icon_height, power_icon);
+
   itoa(power, buf, 10);
-  Heltec.display->drawString(86, 22, buf);
+  Serial.print(buf);
+  stats=stats+buf+",";
+  
 
   // Resistance
-  Heltec.display->setTextAlignment(TEXT_ALIGN_CENTER);
   itoa(getPeletonResistance(resistance), buf, 10);
-  Heltec.display->drawString(116, 42, buf);
-  Heltec.display->drawXbm(0, 52, resistance_icon_width, resistance_icon_height, resistance_icon);
-  Heltec.display->drawProgressBar(23, 49, 78, 14, uint8_t((100 * resistance) / maxResistance));
+  Serial.println(buf);
+  stats=stats+buf+",";
 
-  // Echelon Icon
-  Heltec.display->drawXbm(100, 3, echelon_icon_width, echelon_icon_height, echelon_icon);
 
-  Heltec.display->display();
+String host = "http://<PHP SERVER IP>/";
+String file_to_access = "echelon_rtb.php";
+String URL = host + file_to_access;
+  
+
+ HTTPClient http;
+
+
+if(peddling){
+bool http_begin = http.begin(URL);
+ String message_name = "message_sent";
+ String message_value = stats+getLocalTime();
+ String payload_request = message_name + "=" + message_value;  //Combine the name and value
+ http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+ int httpResponseCode = http.sendRequest("POST", payload_request);
+ //String payload_response = http.getString();
+}
 }
 
 bool connectToServer() {
   Serial.print("Connecting to ");
   Serial.println(device->getName().c_str());
 
-  Heltec.display->clear();
-  Heltec.display->setLogBuffer(10, 50);
-  Heltec.display->setFont(ArialMT_Plain_10);
-  Heltec.display->println("Connecting to:");
-  Heltec.display->println(device->getName().c_str());
-  Heltec.display->drawLogBuffer(0, 0);
-  Heltec.display->display();
+
     
   client = BLEDevice::createClient();
   client->setClientCallbacks(new ClientCallback());
@@ -195,40 +263,62 @@ bool connectToServer() {
 
   return true;
 }
+// This array keeps function pointers to all frames
+// frames are the single views that slide in
+FrameCallback frames[] = { drawFrame5 };
+
+// how many frames are there?
+int frameCount = 1;
+
+// Overlays are statically drawn on top of a frame eg. a clock
+OverlayCallback overlays[] = { };
+int overlaysCount = 0;
 
 void setup() {
   Serial.begin(115200);
   Serial.flush();
   delay(50);
-    
-  Heltec.display->init();
-  // Heltec.display->flipScreenVertically();
-  
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, LOW);
-
-  pinMode(KEY_BUILTIN, OUTPUT);
-  digitalWrite(KEY_BUILTIN, HIGH);
-
+  String ssid="FILL IN";
+  String password="FILL IN";
+  WiFi.begin(ssid,password); //Connect to WiFi
+ 
   BLEDevice::init("");
   scanner = BLEDevice::getScan();
   scanner->setAdvertisedDeviceCallbacks(new AdvertisedDeviceCallbacks());
   scanner->setInterval(1349);
   scanner->setWindow(449);
   scanner->setActiveScan(true);
+
+  sntp_set_time_sync_notification_cb(timeavailable);
+
+  /**
+   * This will set configured ntp servers and constant TimeZone/daylightOffset
+   * should be OK if your time zone does not need to adjust daylightOffset twice a year,
+   * in such a case time adjustment won't be handled automagically.
+   */
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer1, ntpServer2);
+
+  ui.setTargetFPS(30);
+  // Add frames
+  ui.setFrames(frames, frameCount);
+
+  // Add overlays
+  ui.setOverlays(overlays, overlaysCount);
+
+  // Initialising the UI will init the display too.
+  ui.init();
+
+  display.flipScreenVertically();
 }
 
 void loop() {
   // Start scan
+  
+  int remainingTimeBudget = ui.update();
+  if (remainingTimeBudget > 0) {
   if(!connected){
     Serial.println("Start Scan!");
-    Heltec.display->clear();
-    Heltec.display->drawXbm(64, 0, mountain_icon_width, mountain_icon_height, mountain_icon);
-    Heltec.display->setLogBuffer(10, 50);
-    Heltec.display->setFont(ArialMT_Plain_10);
-    Heltec.display->println("Starting Scan..");
-    Heltec.display->drawLogBuffer(0, 0);
-    Heltec.display->display();
+
     scanner->start(6, false); // Scan for 5 seconds
     BLEDevice::getScan()->stop();
 
@@ -237,19 +327,11 @@ void loop() {
       connected = connectToServer();
       if(!connected) {
         Serial.println("Failed to connect...");
-        Heltec.display->println("Failed to");
-        Heltec.display->println("connect...");
-        Heltec.display->drawLogBuffer(0, 0);
-        Heltec.display->display();
         delay(1100);
         return;
       }
     } else {
       Serial.println("No device found...");
-      Heltec.display->println("No device"); 
-      Heltec.display->println("found...");
-      Heltec.display->drawLogBuffer(0, 0);
-      Heltec.display->display();
       delay(1100);
       return;
     }
@@ -265,6 +347,7 @@ void loop() {
     last_millis = millis();  
   }
   
-  delay(200); // Delay 200ms between loops.
+  delay(remainingTimeBudget); // Delay 200ms between loops.
   updateDisplay();
+  }
 }

@@ -11,6 +11,8 @@ static int device_count = 0;
 #define BUTTON_DEBOUNCE_TIME 50
 #define BUTTON_SHORT_PRESS_TIME 400
 
+#define KEY_BUILTIN 2
+
 // Add a device to our device list (deduplicate in the process)
 void addDevice(BLEAdvertisedDevice * device) {
   for (uint8_t i = 0; i < device_count; i++) {
@@ -27,7 +29,7 @@ void addDevice(BLEAdvertisedDevice * device) {
 
 // Select a device and return it
 BLEAdvertisedDevice * selectDevice(void) {
-  Heltec.display->setFont(ArialMT_Plain_10);
+  //Heltec.display->setFont(ArialMT_Plain_10);
 
   if(device_count == 0) return nullptr;
   if(device_count == 1) return devices[0];
@@ -39,19 +41,19 @@ BLEAdvertisedDevice * selectDevice(void) {
     if(selected > device_count-1) selected = 0;
     int start = selected < 2 ? 0 : selected - 1;
 
-    Heltec.display->clear();
-    Heltec.display->setLogBuffer(10, 50);
+    //Heltec.display->clear();
+    //Heltec.display->setLogBuffer(10, 50);
     // Print to the screen
     for (int i = start; i < device_count; i++) {
       if(i == selected) {
-        Heltec.display->print("->");
+        //Heltec.display->print("->");
       } else {
-        Heltec.display->print("   ");
+        //Heltec.display->print("   ");
       }
-      Heltec.display->println(devices[i]->getName().c_str());
+      //Heltec.display->println(devices[i]->getName().c_str());
     }
-    Heltec.display->drawLogBuffer(0, 0);
-    Heltec.display->display();
+    //Heltec.display->drawLogBuffer(0, 0);
+    //Heltec.display->display();
 
     int lastState = LOW;  // the previous state from the input pin
     int currentState;     // the current reading from the input pin
