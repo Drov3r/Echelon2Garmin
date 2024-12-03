@@ -8,7 +8,7 @@ processed by a python script to output a .fit file which when uploaded to garmin
 allow for tracking of workouts.
 
 This project is a fork of another project and was created as the original board was not available in my country and the 
-heltec drivers wouldnt work and appeared to be buggy.
+heltec drivers wouldn't work and appeared to be buggy.
 
 It's written using Arduino and designed for this board: https://a.co/d/aAaFCNw but hypothetically any esp32 with an oled
 using I2C will work
@@ -36,7 +36,7 @@ The resistance and power is roughly adjusted to be compatible with Peleton.
 1. "SSD1306Wire.h"
 
 ## Python Libraries
-1.Fit_Tools
+1. [Fit_Tool](https://bitbucket.org/stagescycling/python_fit_tool/src/main/)
 
 ## Workflow
 
