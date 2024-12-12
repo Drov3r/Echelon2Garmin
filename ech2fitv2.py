@@ -242,7 +242,7 @@ if __name__ == '__main__':
     # Finally build the FIT file object and write it to a file
     fit_file = builder.build()
 
-    out_path = 'exportv2.fit'
+    out_path = filename+'.fit'
     fit_file.to_file(out_path)
-    csv_path = 'exportv2.csv'
+    csv_path = filename+'.csv'
     fit_file.to_csv(csv_path)

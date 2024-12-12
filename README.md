@@ -7,6 +7,8 @@ upload to garmin possibly comming soon) It does this by sending the information 
 processed by a python script to output a .fit file which when uploaded to garmin connect will show various graphs and
 allow for tracking of workouts.
 
+![20241204_173455.jpg](Images/20241204_173455.jpg)
+
 This project is a fork of another project and was created as the original board was not available in my country and the 
 heltec drivers wouldn't work and appeared to be buggy.
 
